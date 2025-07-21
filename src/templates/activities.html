@@ -4,22 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aktivitäten</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Poppins', sans-serif;
             margin: 20px;
+            background-color: #f5f7fa;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
         }
         table {
             width: 100%;
             border-collapse: collapse;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #eee;
+            padding: 12px;
             text-align: left;
         }
         th {
             background-color: #f4f4f4;
+            font-weight: 600;
         }
         tr:nth-child(even) {
             background-color: #f9f9f9;
@@ -27,15 +41,105 @@
         tr:hover {
             background-color: #f1f1f1;
         }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-close {
+            cursor: pointer;
+            font-size: 24px;
+            color: #666;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            font-family: 'Poppins', sans-serif;
+        }
+        .btn {
+            background-color: #764ba2;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #8a5cb5;
+        }
+        .btn-add {
+            background-color: #4CAF50;
+            margin-left: 10px;
+        }
+        .btn-add:hover {
+            background-color: #45a049;
+        }
+        .source-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .source-strava {
+            background-color: #FC4C02;
+            color: white;
+        }
+        .source-manual {
+            background-color: #4CAF50;
+            color: white;
+        }
     </style>
 </head>
 <body>
-    <h1>Liste der Aktivitäten</h1>
+    <div class="header">
+        <h1>Liste der Aktivitäten</h1>
+        <button class="btn btn-add" onclick="openModal()">+ Aktivität hinzufügen</button>
+    </div>
+    
     {% if activities %}
         <table>
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>Quelle</th>
                     <th>Name</th>
                     <th>Typ</th>
                     <th>Startdatum</th>
@@ -45,7 +149,13 @@
             <tbody>
                 {% for activity in activities %}
                     <tr>
-                        <td>{{ activity.id }}</td>
+                        <td>
+                            {% if activity.source == 'strava' %}
+                                <span class="source-tag source-strava">Strava</span>
+                            {% else %}
+                                <span class="source-tag source-manual">Manuell</span>
+                            {% endif %}
+                        </td>
                         <td>{{ activity.name }}</td>
                         <td>{{ activity.type }}</td>
                         <td>{{ activity.start_date }}</td>
@@ -57,5 +167,74 @@
     {% else %}
         <p>Keine Aktivitäten gefunden.</p>
     {% endif %}
+    
+    <!-- Modal für neue Aktivität -->
+    <div id="activityModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Neue Aktivität hinzufügen</h2>
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+            </div>
+            <form id="activityForm" action="/add-activity" method="post">
+                <div class="form-group">
+                    <label for="name">Name der Aktivität</label>
+                    <input type="text" id="name" name="name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="type">Typ</label>
+                    <select id="type" name="type" class="form-control" required>
+                        <option value="Run">Laufen</option>
+                        <option value="Ride">Radfahren</option>
+                        <option value="Swim">Schwimmen</option>
+                        <option value="Walk">Gehen</option>
+                        <option value="Hike">Wandern</option>
+                        <option value="Workout">Workout</option>
+                        <option value="WeightTraining">Krafttraining</option>
+                        <option value="Yoga">Yoga</option>
+                        <option value="Other">Andere</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="start_date">Datum & Zeit</label>
+                    <input type="datetime-local" id="start_date" name="start_date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="distance">Distanz (in km)</label>
+                    <input type="number" id="distance" name="distance" step="0.01" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="duration">Dauer (in Minuten)</label>
+                    <input type="number" id="duration" name="duration" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="description">Beschreibung</label>
+                    <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+                </div>
+                <button type="submit" class="btn">Aktivität speichern</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openModal() {
+            document.getElementById('activityModal').style.display = 'flex';
+            // Aktuelles Datum und Zeit als Standard setzen
+            const now = new Date();
+            const dateTimeStr = now.toISOString().slice(0, 16);
+            document.getElementById('start_date').value = dateTimeStr;
+        }
+        
+        function closeModal() {
+            document.getElementById('activityModal').style.display = 'none';
+        }
+        
+        // Modal schließen, wenn außerhalb geklickt wird
+        window.onclick = function(event) {
+            const modal = document.getElementById('activityModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
 </body>
 </html>
