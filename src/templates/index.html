@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AktivGrid - Fitness Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 0 20px;
+        }
+        
+        .logo {
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            font-size: 3.5rem;
+            color: white;
+            margin: 0;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo p {
+            color: #f0f0f0;
+            font-size: 1.2rem;
+            margin: 10px 0 0;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 40px;
+        }
+        
+        .card p {
+            color: #555;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background: #764ba2;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            background: #8a5cb5;
+        }
+        
+        .footer {
+            margin-top: auto;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>AktivGrid</h1>
+            <p>Verfolge deine sportlichen Aktivitäten</p>
+        </div>
+        
+        <div class="card">
+            <p>Melde dich an, um deine Trainingsfortschritte zu verfolgen, Aktivitäten zu analysieren und deine sportlichen Ziele zu erreichen.</p>
+            <a href="/login" class="btn">Anmelden</a>
+        </div>
+        
+        <div class="footer">
+            <p>&copy; 2025 AktivGrid. Alle Rechte vorbehalten.</p>
+        </div>
+    </div>
+</body>
+</html>

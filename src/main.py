@@ -50,7 +50,8 @@ def callback():
         })
         print(f"Neuer Nutzer hinzugefügt: {user_info['email']}")
 
-    return redirect("/dashboard")
+    # Nach Login direkt zu den Aktivitäten weiterleiten statt zum Dashboard
+    return redirect("/activities")
 
 # Auth0 Logout
 @app.route("/logout")
@@ -79,6 +80,14 @@ def requires_auth(f):
 
 
 @app.route("/")
+def home():
+    """
+    Zeigt die Hauptseite mit Login-Button an.
+    """
+    return render_template("index.html")
+
+# Strava-Login auf eine andere Route verschieben (falls noch benötigt)
+@app.route("/strava")
 def strava_login():
     c = Client()
     url = c.authorization_url(
@@ -116,7 +125,8 @@ def list_activities():
     """
     access_token = session.get("access_token")
     if not access_token:
-        return "Access token is required", 400
+        # Falls kein Strava-Token vorhanden ist, zeigen wir eine Seite mit Strava-Verbindungsoption an
+        return render_template("connect_strava.html")
 
     client = Client(access_token=access_token)
     activities = client.get_activities()

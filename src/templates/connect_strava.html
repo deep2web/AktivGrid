@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mit Strava verbinden - AktivGrid</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .btn-connect {
+            display: inline-block;
+            background-color: #FC4C02; /* Strava orange */
+            color: white;
+            padding: 12px 30px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .btn-connect:hover {
+            background-color: #E34902;
+        }
+        .strava-logo {
+            height: 24px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Verbinde dein Strava-Konto</h1>
+        <p>Um deine Aktivitäten anzeigen zu können, musst du dein Strava-Konto mit AktivGrid verbinden.</p>
+        <a href="/strava" class="btn-connect">
+            <img src="https://cdn.iconscout.com/icon/free/png-256/strava-3-555431.png" alt="Strava" class="strava-logo">
+            Mit Strava verbinden
+        </a>
+    </div>
+</body>
+</html>
