@@ -1,18 +1,9 @@
-from stravalib import Client
-
-# Open the secrets file and store the client ID and client secret as objects, separated by a comma
-# Read below to learn how to set up the app that provides you with the client ID
-# and the client secret
-#client_id, client_secret = open("src/secrets.env").read().strip().split(",")
-
-
-#!flask/bin/python
-from flask import Flask, render_template, request, url_for
-
+from flask import Flask, render_template, request, url_for, session
 from stravalib import Client
 
 app = Flask(__name__)
 app.config.from_pyfile("secrets.env")
+app.secret_key = "your_secret_key"  # Setze einen geheimen Schlüssel für die Session
 
 
 @app.route("/")
@@ -35,25 +26,53 @@ def logged_in():
     - error
     """
     error = request.args.get("error")
-    state = request.args.get("state")
     if error:
         return render_template("login_error.html", error=error)
     else:
         code = request.args.get("code")
         client = Client()
-        access_token = client.exchange_code_for_token(
+        token_response = client.exchange_code_for_token(
             client_id=app.config["STRAVA_CLIENT_ID"],
             client_secret=app.config["STRAVA_CLIENT_SECRET"],
             code=code,
         )
-        # Probably here you'd want to store this somewhere -- e.g. in a database.
-        strava_athlete = client.get_athlete()
+        # Extrahiere den tatsächlichen Access Token
+        access_token = token_response["access_token"]
+        session["access_token"] = access_token  # Speichere nur den Access Token in der Session
+        print(f"Access Token: {access_token}")
 
+        strava_athlete = client.get_athlete()
         return render_template(
             "login_results.html",
             athlete=strava_athlete,
             access_token=access_token,
         )
+
+
+@app.route("/activities")
+def list_activities():
+    """
+    List all activities of the authenticated athlete.
+    """
+    # Hole den Access Token aus der Session
+    access_token = session.get("access_token")
+    if not access_token:
+        return "Access token is required", 400
+
+    client = Client(access_token=access_token)
+    activities = client.get_activities()
+
+    activity_list = []
+    for activity in activities:
+        activity_list.append({
+            "id": activity.id,
+            "name": activity.name,
+            "type": activity.type,
+            "start_date": activity.start_date,
+            "has_gps": activity.start_latlng is not None  # Prüfe, ob GPS-Daten vorhanden sind
+        })
+
+    return render_template("activities.html", activities=activity_list)
 
 
 if __name__ == "__main__":
