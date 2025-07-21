@@ -112,6 +112,23 @@
         .btn-add:hover {
             background-color: #45a049;
         }
+        .btn-logout {
+            background-color: #e74c3c;
+            margin-left: 10px;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-logout:hover {
+            background-color: #c0392b;
+        }
         .source-tag {
             display: inline-block;
             padding: 3px 8px;
@@ -127,12 +144,39 @@
             background-color: #4CAF50;
             color: white;
         }
+        .btn-strava {
+            background-color: #FC4C02; /* Strava orange */
+            margin-left: 10px;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-strava:hover {
+            background-color: #E34902;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Liste der Aktivitäten</h1>
-        <button class="btn btn-add" onclick="openModal()">+ Aktivität hinzufügen</button>
+        <div>
+            <button class="btn btn-add" onclick="openModal()">+ Aktivität hinzufügen</button>
+            {% if strava_connected %}
+                <form action="/disconnect-strava" method="post" style="display: inline;">
+                    <button type="submit" class="btn btn-strava">Strava trennen</button>
+                </form>
+            {% else %}
+                <a href="/strava" class="btn btn-strava">Mit Strava verbinden</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-logout">Logout</a>
+        </div>
     </div>
     
     {% if activities %}

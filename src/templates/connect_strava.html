@@ -48,6 +48,19 @@
             vertical-align: middle;
             margin-right: 8px;
         }
+        .btn-skip {
+            display: inline-block;
+            background-color: #ddd;
+            color: #333;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .btn-skip:hover {
+            background-color: #bbb;
+        }
     </style>
 </head>
 <body>
@@ -58,6 +71,8 @@
             <img src="https://cdn.iconscout.com/icon/free/png-256/strava-3-555431.png" alt="Strava" class="strava-logo">
             Mit Strava verbinden
         </a>
+        <br><br>
+        <a href="/activities?skipped=true" class="btn-skip">Überspringen</a>
     </div>
 </body>
 </html>

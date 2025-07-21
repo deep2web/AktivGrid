@@ -16,6 +16,8 @@ db = mongo_client["user_data"]  # Datenbank "aktivgrid"
 users_collection = db["user_accounts"]  # Sammlung "users"
 # Collection für Benutzeraktivitäten
 user_activities_collection = db["user_activities"]
+# Collection für Strava-Accounts (unter den bestehenden Collections)
+strava_accounts_collection = db["strava_accounts"]
 
 # Auth0-Konfiguration
 oauth = OAuth(app)
@@ -102,6 +104,7 @@ def strava_login():
 
 
 @app.route("/strava-auth")
+@requires_auth
 def logged_in():
     """
     Handles the redirect from Strava and exchanges the code for an access token.
@@ -116,7 +119,31 @@ def logged_in():
         client_secret=app.config["STRAVA_CLIENT_SECRET"],
         code=code,
     )
+    
+    # Benutzerinformationen abrufen
+    user = session.get("user")
+    user_obj = users_collection.find_one({"email": user["email"]})
+    user_id = user_obj["_id"]
+    
+    # Tokendaten in MongoDB speichern
+    strava_account = {
+        "user_id": user_id,
+        "access_token": token_response["access_token"],
+        "refresh_token": token_response["refresh_token"],
+        "expires_at": token_response["expires_at"],
+        "created_at": datetime.now().replace(tzinfo=None)
+    }
+    
+    # Prüfen, ob Benutzer bereits einen Strava-Account hat
+    existing_strava_account = strava_accounts_collection.find_one({"user_id": user_id})
+    if existing_strava_account:
+        strava_accounts_collection.update_one({"user_id": user_id}, {"$set": strava_account})
+    else:
+        strava_accounts_collection.insert_one(strava_account)
+    
+    # Access Token für diese Sitzung in Session speichern
     session["access_token"] = token_response["access_token"]
+    
     return redirect(url_for("list_activities"))
 
 
@@ -128,19 +155,23 @@ def list_activities():
     """
     user = session.get("user")
     user_obj = users_collection.find_one({"email": user["email"]})
-    
+    user_id = user_obj["_id"]
+
+    # Prüfen, ob der Benutzer die Strava-Verbindung übersprungen hat
+    skipped = request.args.get('skipped') == 'true'
+
     # Kombinierte Liste für alle Aktivitäten
     all_activities = []
-    
+
     # Manuelle Aktivitäten aus der DB laden
-    manual_activities = list(user_activities_collection.find({"user_id": user_obj["_id"]}))
-    
+    manual_activities = list(user_activities_collection.find({"user_id": user_id}))
+
     for activity in manual_activities:
         # Konvertiere start_date in naive datetime
         start_date = activity["start_date"]
         if start_date.tzinfo is not None:
             start_date = start_date.replace(tzinfo=None)
-        
+
         all_activities.append({
             "id": str(activity["_id"]),
             "name": activity["name"],
@@ -149,36 +180,50 @@ def list_activities():
             "has_gps": False,
             "source": "manual"
         })
-    
+
+    # Prüfen, ob der Nutzer mit Strava verbunden ist
+    strava_account = strava_accounts_collection.find_one({"user_id": user_id})
+    strava_connected = strava_account is not None
+
+    # Access-Token aus Datenbank abrufen oder bei Bedarf aktualisieren
+    access_token = None
+    if strava_connected:
+        access_token = refresh_strava_token(user_id)
+        # Token auch in der Session speichern
+        session["access_token"] = access_token
+
     # Strava-Aktivitäten laden, falls ein Token vorhanden ist
-    access_token = session.get("access_token")
     if access_token:
         client = Client(access_token=access_token)
-        strava_activities = client.get_activities()
-        
-        for activity in strava_activities:
-            # Konvertiere start_date in naive datetime
-            start_date = activity.start_date
-            if start_date.tzinfo is not None:
-                start_date = start_date.replace(tzinfo=None)
-            
-            all_activities.append({
-                "id": activity.id,
-                "name": activity.name,
-                "type": activity.type,
-                "start_date": start_date,
-                "has_gps": activity.start_latlng is not None,
-                "source": "strava"
-            })
-    
+        try:
+            strava_activities = client.get_activities()
+
+            for activity in strava_activities:
+                # Konvertiere start_date in naive datetime
+                start_date = activity.start_date
+                if start_date.tzinfo is not None:
+                    start_date = start_date.replace(tzinfo=None)
+
+                all_activities.append({
+                    "id": activity.id,
+                    "name": activity.name,
+                    "type": activity.type,
+                    "start_date": start_date,
+                    "has_gps": activity.start_latlng is not None,
+                    "source": "strava"
+                })
+        except Exception as e:
+            print(f"Fehler beim Abrufen der Strava-Aktivitäten: {e}")
+
     # Aktivitäten nach Datum sortieren (neueste zuerst)
     all_activities.sort(key=lambda x: x["start_date"], reverse=True)
-    
-    if not all_activities and not access_token:
+
+    # Nur zur Strava-Verbindungsseite leiten, wenn keine Aktivitäten UND kein Token UND nicht übersprungen
+    if not all_activities and not strava_connected and not skipped:
         # Falls keine Aktivitäten und kein Strava-Token
         return render_template("connect_strava.html")
-        
-    return render_template("activities.html", activities=all_activities)
+
+    return render_template("activities.html", activities=all_activities, strava_connected=strava_connected)
 
 @app.route("/add-activity", methods=["POST"])
 @requires_auth
@@ -215,6 +260,63 @@ def add_activity():
     
     user_activities_collection.insert_one(activity_data)
     
+    return redirect("/activities")
+
+def refresh_strava_token(user_id):
+    """
+    Prüft den Strava-Token und aktualisiert ihn, wenn er abgelaufen ist
+    """
+    strava_account = strava_accounts_collection.find_one({"user_id": user_id})
+    
+    if not strava_account:
+        return None
+    
+    # Prüfen, ob der Token abgelaufen ist
+    current_time = int(datetime.now().timestamp())
+    if current_time < strava_account["expires_at"]:
+        # Token ist noch gültig
+        return strava_account["access_token"]
+    
+    # Token ist abgelaufen, erneuern
+    try:
+        refresh_response = Client().refresh_access_token(
+            client_id=app.config["STRAVA_CLIENT_ID"],
+            client_secret=app.config["STRAVA_CLIENT_SECRET"],
+            refresh_token=strava_account["refresh_token"]
+        )
+        
+        # Token-Informationen in MongoDB aktualisieren
+        strava_accounts_collection.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "access_token": refresh_response["access_token"],
+                "refresh_token": refresh_response["refresh_token"],
+                "expires_at": refresh_response["expires_at"]
+            }}
+        )
+        
+        return refresh_response["access_token"]
+    except Exception as e:
+        print(f"Fehler beim Aktualisieren des Tokens: {e}")
+        return None
+
+@app.route("/disconnect-strava", methods=["POST"])
+@requires_auth
+def disconnect_strava():
+    """
+    Trennt den Strava-Account vom Nutzer und löscht den Eintrag in der MongoDB.
+    """
+    user = session.get("user")
+    user_obj = users_collection.find_one({"email": user["email"]})
+    user_id = user_obj["_id"]
+
+    # Strava-Account aus der MongoDB löschen
+    strava_accounts_collection.delete_one({"user_id": user_id})
+
+    # Access-Token aus der Session entfernen
+    session.pop("access_token", None)
+
+    print(f"Strava-Account für Nutzer {user['email']} wurde getrennt.")
     return redirect("/activities")
 
 if __name__ == "__main__":
