@@ -151,7 +151,7 @@ def logged_in():
 @requires_auth
 def list_activities():
     """
-    List all activities of the authenticated athlete.
+    List all activities of the authenticated athlete, optionally filtered by date range.
     """
     user = session.get("user")
     user_obj = users_collection.find_one({"email": user["email"]})
@@ -160,11 +160,24 @@ def list_activities():
     # Prüfen, ob der Benutzer die Strava-Verbindung übersprungen hat
     skipped = request.args.get('skipped') == 'true'
 
+    # Datumsbereich aus der Anfrage abrufen
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
     # Kombinierte Liste für alle Aktivitäten
     all_activities = []
 
     # Manuelle Aktivitäten aus der DB laden
-    manual_activities = list(user_activities_collection.find({"user_id": user_id}))
+    query = {"user_id": user_id}
+    if start_date:
+        query["start_date"] = {"$gte": datetime.strptime(start_date, "%Y-%m-%d")}
+    if end_date:
+        if "start_date" in query:
+            query["start_date"]["$lte"] = datetime.strptime(end_date, "%Y-%m-%d")
+        else:
+            query["start_date"] = {"$lte": datetime.strptime(end_date, "%Y-%m-%d")}
+
+    manual_activities = list(user_activities_collection.find(query))
 
     for activity in manual_activities:
         # Konvertiere start_date in naive datetime
@@ -200,15 +213,25 @@ def list_activities():
 
             for activity in strava_activities:
                 # Konvertiere start_date in naive datetime
-                start_date = activity.start_date
-                if start_date.tzinfo is not None:
-                    start_date = start_date.replace(tzinfo=None)
+                activity_date = activity.start_date
+                if activity_date.tzinfo is not None:
+                    activity_date = activity_date.replace(tzinfo=None)
+
+                # Filtere Strava-Aktivitäten nach Datumsbereich
+                if request.args.get("start_date") and request.args.get("end_date"):
+                    filter_start = datetime.strptime(request.args.get("start_date"), "%Y-%m-%d")
+                    filter_end = datetime.strptime(request.args.get("end_date"), "%Y-%m-%d")
+                    # Füge einen Tag zu filter_end hinzu, damit auch Aktivitäten des Enddatums eingeschlossen werden
+                    filter_end = filter_end.replace(hour=23, minute=59, second=59)
+                    
+                    if activity_date < filter_start or activity_date > filter_end:
+                        continue
 
                 all_activities.append({
                     "id": activity.id,
                     "name": activity.name,
                     "type": activity.type,
-                    "start_date": start_date,
+                    "start_date": activity_date,
                     "has_gps": activity.start_latlng is not None,
                     "source": "strava"
                 })
@@ -223,7 +246,25 @@ def list_activities():
         # Falls keine Aktivitäten und kein Strava-Token
         return render_template("connect_strava.html")
 
-    return render_template("activities.html", activities=all_activities, strava_connected=strava_connected)
+    # WICHTIG: Immer frische Benutzerdaten aus der Datenbank laden
+    user = session.get("user")
+    user_obj = users_collection.find_one({"email": user["email"]})
+    
+    # Aktualisiere auch die Session mit den frischen Daten
+    session["user"]["name"] = user_obj.get("name", user["name"])
+    session.modified = True
+
+    # Am Ende der Funktion die frischen Benutzerdaten aus der Datenbank verwenden
+    return render_template(
+        "activities.html", 
+        activities=all_activities, 
+        strava_connected=strava_connected,
+        user={
+            "name": user_obj.get("name", user["name"]),
+            "email": user["email"],
+            "picture": user["picture"]
+        }  # Aktuelle Benutzerdaten aus DB
+    )
 
 @app.route("/add-activity", methods=["POST"])
 @requires_auth
@@ -318,6 +359,45 @@ def disconnect_strava():
 
     print(f"Strava-Account für Nutzer {user['email']} wurde getrennt.")
     return redirect("/activities")
+
+@app.route("/update-settings", methods=["POST"])
+@requires_auth
+def update_settings():
+    """
+    Aktualisiert die Benutzereinstellungen in der Datenbank
+    """
+    user = session.get("user")
+    new_name = request.form.get("name")
+    
+    print(f"Einstellungen aktualisieren - Alter Name: {user['name']}, Neuer Name: {new_name}")
+    
+    # Aktualisiere den Namen in der Datenbank
+    if new_name and new_name != user["name"]:
+        result = users_collection.update_one(
+            {"email": user["email"]},
+            {"$set": {"name": new_name}}
+        )
+        
+        # Überprüfe, ob die Aktualisierung erfolgreich war
+        if result.modified_count == 1:
+            print(f"Name für Nutzer {user['email']} wurde zu '{new_name}' in der Datenbank geändert.")
+            
+            # Aktualisiere die Session (komplett neu laden aus der DB)
+            user_obj = users_collection.find_one({"email": user["email"]})
+            session["user"] = {
+                "name": user_obj.get("name"),
+                "email": user["email"],
+                "picture": user["picture"]
+            }
+            session.modified = True  # Wichtig: Markiert die Session als geändert
+            
+            print(f"Session aktualisiert. Neuer Name in Session: {session['user']['name']}")
+        else:
+            print(f"Fehler: Name konnte nicht in der Datenbank aktualisiert werden!")
+    
+    # Cache-Busting-Parameter hinzufügen
+    timestamp = datetime.now().timestamp()
+    return redirect(f"/activities?_={timestamp}")
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aktivitäten</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -161,12 +162,112 @@
         .btn-strava:hover {
             background-color: #E34902;
         }
+        .action-buttons {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .filter-form {
+            display: inline-flex;
+            align-items: center;
+        }
+        .filter-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .date-inputs {
+            display: flex;
+            align-items: center;
+        }
+        .date-control {
+            width: 130px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: 'Poppins', sans-serif;
+        }
+        .date-separator {
+            margin: 0 5px;
+            color: #666;
+        }
+        .btn-filter {
+            padding: 8px 15px;
+            background-color: #666;
+            font-size: 14px;
+        }
+        .btn-filter:hover {
+            background-color: #555;
+        }
+        .btn-settings {
+            background-color: #555;
+            padding: 10px;
+            border-radius: 5px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-settings:hover {
+            background-color: #444;
+        }
+
+        .btn-settings i {
+            font-size: 18px;
+        }
+
+        /* Stile für das Settings-Modal */
+        .modal-content {
+            padding: 20px;
+        }
+
+        .modal-title {
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .settings-form {
+            margin-top: 20px;
+        }
+
+        .settings-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .settings-form label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .settings-form .btn-save {
+            margin-top: 10px;
+            background-color: #4CAF50;
+        }
+
+        .settings-form .btn-save:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Liste der Aktivitäten</h1>
-        <div>
+        <div class="action-buttons">
+            <form action="/activities" method="get" class="filter-form">
+                <div class="filter-container">
+                    <div class="date-inputs">
+                        <input type="date" id="start_date" name="start_date" class="date-control" title="Von">
+                        <span class="date-separator">-</span>
+                        <input type="date" id="end_date" name="end_date" class="date-control" title="Bis">
+                    </div>
+                    <button type="submit" class="btn btn-filter">Filter</button>
+                </div>
+            </form>
             <button class="btn btn-add" onclick="openModal()">+ Aktivität hinzufügen</button>
             {% if strava_connected %}
                 <form action="/disconnect-strava" method="post" style="display: inline;">
@@ -176,6 +277,7 @@
                 <a href="/strava" class="btn btn-strava">Mit Strava verbinden</a>
             {% endif %}
             <a href="/logout" class="btn btn-logout">Logout</a>
+            <button class="btn btn-settings" onclick="openSettingsModal()"><i class="fas fa-cog"></i></button>
         </div>
     </div>
     
@@ -259,6 +361,29 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Einstellungen</h2>
+                <span class="modal-close" onclick="closeSettingsModal()">&times;</span>
+            </div>
+            <div class="modal-content">
+                <form id="settingsForm" action="/update-settings" method="post">
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" id="name" name="name" class="form-control" value="{{ user.name }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">E-Mail (nicht änderbar)</label>
+                        <input type="email" id="email" name="email" class="form-control" value="{{ user.email }}" disabled>
+                    </div>
+                    <button type="submit" class="btn btn-save">Speichern</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
         function openModal() {
             document.getElementById('activityModal').style.display = 'flex';
@@ -272,11 +397,22 @@
             document.getElementById('activityModal').style.display = 'none';
         }
         
+        function openSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'flex';
+        }
+        
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+        
         // Modal schließen, wenn außerhalb geklickt wird
         window.onclick = function(event) {
-            const modal = document.getElementById('activityModal');
-            if (event.target == modal) {
+            const activityModal = document.getElementById('activityModal');
+            const settingsModal = document.getElementById('settingsModal');
+            if (event.target == activityModal) {
                 closeModal();
+            } else if (event.target == settingsModal) {
+                closeSettingsModal();
             }
         }
     </script>
