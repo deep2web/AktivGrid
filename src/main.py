@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, url_for, session, redirect
+from flask import Flask, render_template, request, url_for, session, redirect, jsonify
 from authlib.integrations.flask_client import OAuth
 from functools import wraps
 from stravalib import Client
@@ -18,6 +18,8 @@ users_collection = db["user_accounts"]  # Sammlung "users"
 user_activities_collection = db["user_activities"]
 # Collection für Strava-Accounts (unter den bestehenden Collections)
 strava_accounts_collection = db["strava_accounts"]
+# Collection für versteckte Aktivitäten
+hidden_activities_collection = db["hidden_activities"]
 
 # Auth0-Konfiguration
 oauth = OAuth(app)
@@ -167,6 +169,10 @@ def list_activities():
     # Kombinierte Liste für alle Aktivitäten
     all_activities = []
 
+    # Liste der versteckten Aktivitäten abrufen
+    hidden_activities = list(hidden_activities_collection.find({"user_id": user_id}))
+    hidden_ids = {(h["activity_id"], h["source"]) for h in hidden_activities}
+
     # Manuelle Aktivitäten aus der DB laden
     query = {"user_id": user_id}
     if start_date:
@@ -185,13 +191,20 @@ def list_activities():
         if start_date.tzinfo is not None:
             start_date = start_date.replace(tzinfo=None)
 
+        # Aktivitäts-ID als String speichern
+        activity_id = str(activity["_id"])
+        
+        # Prüfen, ob die Aktivität versteckt ist
+        is_hidden = (activity_id, "manual") in hidden_ids
+
         all_activities.append({
-            "id": str(activity["_id"]),
+            "id": activity_id,
             "name": activity["name"],
             "type": activity["type"],
             "start_date": start_date,
             "has_gps": False,
-            "source": "manual"
+            "source": "manual",
+            "hidden": is_hidden
         })
 
     # Prüfen, ob der Nutzer mit Strava verbunden ist
@@ -227,13 +240,20 @@ def list_activities():
                     if activity_date < filter_start or activity_date > filter_end:
                         continue
 
+                # Aktivitäts-ID als String speichern
+                activity_id = str(activity.id)
+                
+                # Prüfen, ob die Aktivität versteckt ist
+                is_hidden = (activity_id, "strava") in hidden_ids
+
                 all_activities.append({
-                    "id": activity.id,
+                    "id": activity_id,
                     "name": activity.name,
                     "type": activity.type,
                     "start_date": activity_date,
                     "has_gps": activity.start_latlng is not None,
-                    "source": "strava"
+                    "source": "strava",
+                    "hidden": is_hidden
                 })
         except Exception as e:
             print(f"Fehler beim Abrufen der Strava-Aktivitäten: {e}")
@@ -398,6 +418,46 @@ def update_settings():
     # Cache-Busting-Parameter hinzufügen
     timestamp = datetime.now().timestamp()
     return redirect(f"/activities?_={timestamp}")
+
+@app.route("/toggle-activity-visibility", methods=["POST"])
+@requires_auth
+def toggle_activity_visibility():
+    """
+    Versteckt oder zeigt eine Aktivität an
+    """
+    user = session.get("user")
+    user_obj = users_collection.find_one({"email": user["email"]})
+    user_id = user_obj["_id"]
+    
+    activity_id = request.form.get("activity_id")
+    source = request.form.get("source")  # "strava" oder "manual"
+    
+    # Prüfen, ob die Aktivität bereits versteckt ist
+    existing_hidden = hidden_activities_collection.find_one({
+        "user_id": user_id,
+        "activity_id": activity_id,
+        "source": source
+    })
+    
+    if existing_hidden:
+        # Aktivität wieder anzeigen
+        hidden_activities_collection.delete_one({
+            "user_id": user_id,
+            "activity_id": activity_id,
+            "source": source
+        })
+        action = "visible"
+    else:
+        # Aktivität verstecken
+        hidden_activities_collection.insert_one({
+            "user_id": user_id,
+            "activity_id": activity_id,
+            "source": source,
+            "hidden_at": datetime.now().replace(tzinfo=None)
+        })
+        action = "hidden"
+    
+    return jsonify({"status": "success", "action": action})
 
 if __name__ == "__main__":
     app.run(debug=True)
