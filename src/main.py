@@ -6,6 +6,7 @@ from pymongo import MongoClient  # MongoDB-Bibliothek importieren
 from bson.objectid import ObjectId
 from datetime import datetime
 
+
 app = Flask(__name__)
 app.config.from_pyfile("secrets.env")
 app.secret_key = "your_secret_key"  # Setze einen geheimen Schlüssel für die Session
@@ -296,15 +297,29 @@ def add_activity():
     user_id = users_collection.find_one({"email": user["email"]})["_id"]
     
     # Formularfelder auslesen
-    name = request.form.get("name")
-    activity_type = request.form.get("type")
+    name = request.form.get("name", "Unbenannte Aktivität")
+    activity_type = request.form.get("type", "other")
     start_date = request.form.get("start_date")
-    distance = request.form.get("distance", 0)
-    duration = request.form.get("duration", 0)
+    distance_str = request.form.get("distance", "")
+    duration_str = request.form.get("duration", "")
     description = request.form.get("description", "")
     
+    # Sicherstellen, dass numerische Werte korrekt verarbeitet werden
+    try:
+        distance = float(distance_str) if distance_str.strip() else 0
+    except (ValueError, AttributeError):
+        distance = 0
+    
+    try:
+        duration = float(duration_str) if duration_str.strip() else 0
+    except (ValueError, AttributeError):
+        duration = 0
+    
     # Datetime konvertieren und Zeitzoneninformationen entfernen
-    start_date_obj = datetime.strptime(start_date, "%Y-%m-%dT%H:%M").replace(tzinfo=None)
+    try:
+        start_date_obj = datetime.strptime(start_date, "%Y-%m-%dT%H:%M").replace(tzinfo=None)
+    except (ValueError, TypeError):
+        start_date_obj = datetime.now().replace(tzinfo=None)  # Bei ungültigem Datum aktuelles Datum verwenden
     
     # Aktivität in DB speichern
     activity_data = {
@@ -312,10 +327,10 @@ def add_activity():
         "name": name,
         "type": activity_type,
         "start_date": start_date_obj,
-        "distance": float(distance),
-        "duration": float(duration),
+        "distance": distance,
+        "duration": duration,
         "description": description,
-        "source": "manual",  # Quelle der Aktivität
+        "source": "manual",
         "created_at": datetime.now().replace(tzinfo=None)
     }
     
@@ -458,6 +473,48 @@ def toggle_activity_visibility():
         action = "hidden"
     
     return jsonify({"status": "success", "action": action})
+
+@app.route("/delete-activity", methods=["POST"])
+@requires_auth
+def delete_activity():
+    """
+    Löscht eine manuell erstellte Aktivität aus der Datenbank
+    """
+    user = session.get("user")
+    user_obj = users_collection.find_one({"email": user["email"]})
+    user_id = user_obj["_id"]
+    
+    activity_id = request.form.get("activity_id")
+    
+    try:
+        # Sicherstellen, dass die Aktivität dem aktuellen Benutzer gehört und manuell ist
+        activity = user_activities_collection.find_one({
+            "_id": ObjectId(activity_id),
+            "user_id": user_id,
+            "source": "manual"
+        })
+        
+        if not activity:
+            return jsonify({"status": "error", "message": "Aktivität nicht gefunden oder keine Berechtigung"}), 404
+        
+        # Aktivität aus der Datenbank löschen
+        result = user_activities_collection.delete_one({"_id": ObjectId(activity_id)})
+        
+        if result.deleted_count == 1:
+            # Auch eventuell vorhandene Einträge in hidden_activities löschen
+            hidden_activities_collection.delete_one({
+                "user_id": user_id,
+                "activity_id": activity_id,
+                "source": "manual"
+            })
+            
+            return jsonify({"status": "success", "message": "Aktivität gelöscht"})
+        else:
+            return jsonify({"status": "error", "message": "Aktivität konnte nicht gelöscht werden"}), 500
+        
+    except Exception as e:
+        print(f"Fehler beim Löschen der Aktivität: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

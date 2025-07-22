@@ -280,6 +280,57 @@
         .toggle-visibility:hover {
             opacity: 1;
         }
+
+        .btn-icon.delete-activity {
+            color: #e74c3c;
+            margin-left: 10px;
+        }
+
+        .btn-icon.delete-activity:hover {
+            color: #c0392b;
+        }
+
+        /* Bestätigungsdialog für Löschaktionen */
+        .confirm-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            z-index: 1100;
+            display: none;
+            text-align: center;
+            width: 300px;
+        }
+
+        .confirm-dialog p {
+            margin-bottom: 20px;
+        }
+
+        .confirm-dialog .btn-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-confirm-delete {
+            background-color: #e74c3c;
+        }
+
+        .btn-confirm-delete:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-cancel {
+            background-color: #7f8c8d;
+        }
+
+        .btn-cancel:hover {
+            background-color: #6c7a7d;
+        }
     </style>
 </head>
 <body>
@@ -342,6 +393,14 @@
                                     title="{% if activity.hidden %}Aktivität anzeigen{% else %}Aktivität verstecken{% endif %}">
                                 <i class="fas {% if activity.hidden %}fa-eye{% else %}fa-eye-slash{% endif %}"></i>
                             </button>
+                            
+                            {% if activity.source == 'manual' %}
+                            <button class="btn-icon delete-activity" 
+                                    data-id="{{ activity.id }}"
+                                    title="Aktivität löschen">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                 {% endfor %}
@@ -487,6 +546,61 @@
                     }
                 });
             });
+        });
+
+        // Bestätigungsdialog für das Löschen von Aktivitäten
+        const confirmDialog = document.createElement('div');
+        confirmDialog.className = 'confirm-dialog';
+        confirmDialog.innerHTML = `
+            <p>Möchtest du diese Aktivität wirklich löschen?</p>
+            <div class="btn-container">
+                <button id="confirmDelete" class="btn btn-confirm-delete">Löschen</button>
+                <button id="cancelDelete" class="btn btn-cancel">Abbrechen</button>
+            </div>
+        `;
+        document.body.appendChild(confirmDialog);
+        
+        // Löschen-Buttons für Aktivitäten
+        document.querySelectorAll('.delete-activity').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                const activityId = this.dataset.id;
+                const row = this.closest('tr');
+                
+                // Bestätigungsdialog anzeigen
+                confirmDialog.style.display = 'block';
+                
+                // Event-Listener für Bestätigungsbuttons
+                document.getElementById('confirmDelete').onclick = function() {
+                    // AJAX-Anfrage zum Löschen der Aktivität
+                    fetch('/delete-activity', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `activity_id=${activityId}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // Zeile aus der Tabelle entfernen
+                            row.remove();
+                        }
+                        confirmDialog.style.display = 'none';
+                    });
+                };
+                
+                document.getElementById('cancelDelete').onclick = function() {
+                    confirmDialog.style.display = 'none';
+                };
+            });
+        });
+        
+        // Schließen des Dialogs bei Klick außerhalb
+        window.addEventListener('click', function(event) {
+            if (event.target === confirmDialog) {
+                confirmDialog.style.display = 'none';
+            }
         });
     </script>
 </body>
