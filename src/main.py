@@ -4,7 +4,8 @@ from functools import wraps
 from stravalib import Client
 from pymongo import MongoClient  # MongoDB-Bibliothek importieren
 from bson.objectid import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
+import uuid
 
 
 app = Flask(__name__)
@@ -321,21 +322,40 @@ def add_activity():
     except (ValueError, TypeError):
         start_date_obj = datetime.now().replace(tzinfo=None)  # Bei ungültigem Datum aktuelles Datum verwenden
     
-    # Aktivität in DB speichern
-    activity_data = {
+    # Aktivitäten speichern: Einzeln oder wöchentlich wiederholt
+    repeat_weekly = request.form.get("repeat_weekly") == "on"
+    repeat_end_str = request.form.get("repeat_end_date")
+    repeat_end = None
+    if repeat_end_str:
+        try:
+            repeat_end = datetime.strptime(repeat_end_str, "%Y-%m-%dT%H:%M").replace(tzinfo=None)
+        except ValueError:
+            repeat_end = None
+
+    base = {
         "user_id": user_id,
         "name": name,
         "type": activity_type,
-        "start_date": start_date_obj,
         "distance": distance,
         "duration": duration,
         "description": description,
         "source": "manual",
         "created_at": datetime.now().replace(tzinfo=None)
     }
-    
-    user_activities_collection.insert_one(activity_data)
-    
+
+    if not repeat_weekly:
+        base.update({"start_date": start_date_obj, "repeating": False})
+        user_activities_collection.insert_one(base)
+    else:
+        group = str(uuid.uuid4())
+        date = start_date_obj
+        end = repeat_end or (start_date_obj + timedelta(weeks=52))
+        while date <= end:
+            entry = base.copy()
+            entry.update({"start_date": date, "repeating": True, "repeat_group_id": group})
+            user_activities_collection.insert_one(entry)
+            date += timedelta(weeks=1)
+
     return redirect("/activities")
 
 def refresh_strava_token(user_id):

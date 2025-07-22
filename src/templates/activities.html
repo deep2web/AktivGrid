@@ -440,6 +440,17 @@
                     <label for="start_date">Datum & Zeit</label>
                     <input type="datetime-local" id="start_date" name="start_date" class="form-control" required>
                 </div>
+
+                <!-- Wiederholungsoption -->
+                <div class="form-group">
+                    <input type="checkbox" id="repeat_weekly" name="repeat_weekly">
+                    <label for="repeat_weekly">Wöchentlich wiederholen</label>
+                </div>
+                <div class="form-group" id="repeat_end_group" style="display:none;">
+                    <label for="repeat_end_date">Enddatum der Wiederholung (optional)</label>
+                    <input type="datetime-local" id="repeat_end_date" name="repeat_end_date" class="form-control">
+                </div>
+
                 <div class="form-group">
                     <label for="distance">Distanz (in km)</label>
                     <input type="number" id="distance" name="distance" step="0.01" class="form-control">
@@ -487,6 +498,11 @@
             const now = new Date();
             const dateTimeStr = now.toISOString().slice(0, 16);
             document.getElementById('start_date').value = dateTimeStr;
+
+            // Wiederholungsfelder zurücksetzen
+            document.getElementById('repeat_weekly').checked = false;
+            document.getElementById('repeat_end_group').style.display = 'none';
+            document.getElementById('repeat_end_date').value = '';
         }
         
         function closeModal() {
@@ -511,6 +527,11 @@
                 closeSettingsModal();
             }
         }
+
+        // Wiederholungsoption zeigen/verstecken
+        document.getElementById('repeat_weekly').addEventListener('change', function() {
+            document.getElementById('repeat_end_group').style.display = this.checked ? 'block' : 'none';
+        });
 
         // Umschalten der Sichtbarkeit von Aktivitäten
         document.querySelectorAll('.toggle-visibility').forEach(button => {
